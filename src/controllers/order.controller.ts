@@ -2,6 +2,7 @@ import { Request, Response } from 'express';
 import { createOrderService } from '../services/order.service';
 import { CreateOrderSchema } from '../schemas/order.schema';
 import { z } from 'zod';
+import { prisma } from '../config/db';
 
 export const createOrderController = async (req: Request, res: Response): Promise<void> => {
   try {
@@ -36,5 +37,40 @@ export const createOrderController = async (req: Request, res: Response): Promis
       success: false,
       message: error.message || 'Error interno del servidor'
     });
+  }
+};
+
+export const getOrders = async (req: Request, res: Response) => {
+  try {
+    const orders = await prisma.maintenance_orders.findMany({
+      orderBy: { created_at: 'desc' }, // Las más nuevas primero
+      include: {
+        equipment: true, // Traemos datos del equipo
+        personnel_maintenance_orders_mechanic_idTopersonnel: true,  // Traemos datos del mecánico
+        personnel_maintenance_orders_supervisor_idTopersonnel: true,// Traemos datos del supervisor
+        consumption_details: true // Traemos los detalles para calcular el costo
+      }
+    });
+
+    // Procesamos para calcular el TOTAL de cada orden
+    const formattedOrders = orders.map(order => {
+      // Sumamos el costo de todos los repuestos de esta orden
+      const totalCost = order.consumption_details.reduce((sum, item) => {
+        return sum + Number(item.total_line_cost);
+      }, 0);
+
+      return {
+        ...order,
+        total_cost: totalCost, // Campo calculado extra
+        items_count: order.consumption_details.length,
+
+        mechanic: order.personnel_maintenance_orders_mechanic_idTopersonnel,
+        supervisor: order.personnel_maintenance_orders_supervisor_idTopersonnel
+      };
+    });
+
+    res.json(formattedOrders);
+  } catch (error) {
+    res.status(500).json({ message: 'Error al obtener historial de órdenes' });
   }
 };

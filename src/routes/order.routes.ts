@@ -1,10 +1,9 @@
 import { Router } from 'express';
-import { createOrderController } from '../controllers/order.controller';
+import { createOrderController, getOrders } from '../controllers/order.controller'; // Importa la nueva función
 
 const router = Router();
 
-// Definimos el método POST en la raíz de esta ruta
-// La URL final será: http://localhost:3000/api/orders
 router.post('/', createOrderController);
+router.get('/', getOrders); 
 
 export default router;
