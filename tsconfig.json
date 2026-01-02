@@ -1,0 +1,25 @@
+{
+  "compilerOptions": {
+    /* --- Rutas de Archivos --- */
+    "rootDir": "./src",
+    "outDir": "./dist",
+
+    /* --- Configuración de Módulos (Estándar Node.js) --- */
+    "target": "es2020",       /* Versión moderna de JS */
+    "module": "commonjs",     /* El estándar más compatible para Backend */
+    "moduleResolution": "node",
+    "esModuleInterop": true,  /* Permite importar librerías viejas sin problemas */
+    
+    /* --- Tipado Estricto (Buenas Prácticas) --- */
+    "strict": true,
+    "noImplicitAny": true,
+    "strictNullChecks": true,
+    
+    /* --- Otros --- */
+    "skipLibCheck": true,     /* Acelera la compilación ignorando errores en librerías externas */
+    "forceConsistentCasingInFileNames": true,
+    "resolveJsonModule": true /* Permite importar archivos .json */
+  },
+  "include": ["src/**/*"],
+  "exclude": ["node_modules", "**/*.spec.ts"]
+}
