@@ -74,3 +74,76 @@ export const getOrders = async (req: Request, res: Response) => {
     res.status(500).json({ message: 'Error al obtener historial de órdenes' });
   }
 };
+
+
+export const getOrderById = async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+
+    const order = await prisma.maintenance_orders.findUnique({
+      where: { id: Number(id) },
+      include: {
+        // 1. Traemos Equipo + Su Ubicación Actual
+        equipment: {
+          include: {
+            locations: true // Para saber dónde está el equipo físicamente
+          }
+        },
+        // 2. Traemos la Ubicación de Destino del Pedido
+        locations: true, 
+        
+        // 3. Personal
+        personnel_maintenance_orders_mechanic_idTopersonnel: true,
+        personnel_maintenance_orders_supervisor_idTopersonnel: true,
+        
+        // 4. Detalles + Nombres Correctos (Usando los nombres de Prisma)
+        consumption_details: {
+          include: {
+            product_variants: { // <--- Así se llama en tu BD
+              include: {
+                product_catalog: true, // <--- Así se llama en tu BD
+                brands: true           // <--- Así se llama en tu BD
+              }
+            }
+          }
+        }
+      }
+    });
+
+    if (!order) {
+      res.status(404).json({ message: 'Orden no encontrada' });
+      return;
+    }
+
+    // --- LIMPIEZA DE DATOS (MAPPING) ---
+    // Convertimos la estructura fea de Prisma a la bonita que espera Vue
+    const formattedOrder = {
+      ...order,
+      // Nombres de cabecera
+      location: order.locations, // "Area Destino"
+      mechanic: order.personnel_maintenance_orders_mechanic_idTopersonnel,
+      supervisor: order.personnel_maintenance_orders_supervisor_idTopersonnel,
+      
+      // Limpieza de los detalles (Aquí arreglamos el "Item desconocido")
+      consumption_details: order.consumption_details.map(detail => ({
+        ...detail,
+        variant: {
+          ...detail.product_variants,
+          // Mapeamos 'product_catalog' a 'catalog' para que el front lo entienda
+          catalog: detail.product_variants?.product_catalog, 
+          // Mapeamos 'brands' a 'brand'
+          brand: detail.product_variants?.brands
+        }
+      })),
+
+      // Calculamos total
+      total_cost: order.consumption_details.reduce((sum, item) => sum + Number(item.total_line_cost), 0)
+    };
+
+    res.json(formattedOrder);
+
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ message: 'Error al obtener el detalle' });
+  }
+};
