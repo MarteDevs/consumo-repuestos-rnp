@@ -8,6 +8,10 @@ const OrderItemSchema = z.object({
 
 // Este es el esquema principal que usaremos en la Ruta
 export const CreateOrderSchema = z.object({
+  // Agregamos validación de fecha (string porque viene del input date)
+  order_date: z.string()
+    .min(1, "La fecha es obligatoria")
+    .regex(/^\d{4}-\d{2}-\d{2}$/, "Formato de fecha inválido (debe ser YYYY-MM-DD)"),
   // Validamos el POOT (Número de orden física)
   poot_number: z.string().min(1, "El N° POOT es obligatorio"),
   

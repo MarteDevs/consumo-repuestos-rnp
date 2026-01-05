@@ -24,7 +24,7 @@ export const createOrderService = async (data: CreateOrderDTO) => {
     const newOrder = await tx.maintenance_orders.create({
       data: {
         poot_number: data.poot_number,
-        order_date: new Date(), // Usamos la fecha del servidor
+        order_date: new Date(data.order_date + "T12:00:00"),
         equipment_id: data.equipment_id,
         location_id: data.location_id,
         mechanic_id: data.mechanic_id,

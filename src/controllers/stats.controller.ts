@@ -3,57 +3,62 @@ import prisma from '../config/db';
 
 export const getDashboardStats = async (req: Request, res: Response) => {
   try {
-    // Definir rangos de fecha (Mes Actual)
     const now = new Date();
     const firstDayOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
 
-    // 1. KPI: Gasto Total del Mes Actual (SQL Directo para eficiencia)
-    const currentMonthExpense: any[] = await prisma.$queryRaw`
-      SELECT SUM(cd.total_line_cost) as total
-      FROM maintenance_orders o
-      JOIN consumption_details cd ON o.id = cd.order_id
-      WHERE o.order_date >= ${firstDayOfMonth}
-    `;
-
-    // 2. KPI: Cantidad de Órdenes del Mes
-    const currentMonthCount = await prisma.maintenance_orders.count({
-      where: { order_date: { gte: firstDayOfMonth } }
-    });
-
-    // 3. GRÁFICO 1: Gasto por los últimos 6 meses
-    // Truco: Agrupamos por Año-Mes
-    const expensesByMonth: any[] = await prisma.$queryRaw`
-      SELECT 
-        DATE_FORMAT(o.order_date, '%Y-%m') as month, 
-        SUM(cd.total_line_cost) as total
-      FROM maintenance_orders o
-      JOIN consumption_details cd ON o.id = cd.order_id
-      WHERE o.order_date >= DATE_SUB(CURDATE(), INTERVAL 6 MONTH)
-      GROUP BY DATE_FORMAT(o.order_date, '%Y-%m')
-      ORDER BY month ASC
-    `;
-
-    // 4. GRÁFICO 2: Top 5 Equipos más costosos (Histórico)
-    const topExpensiveEquipments: any[] = await prisma.$queryRaw`
-      SELECT 
-        e.internal_code, 
-        e.model,
-        SUM(cd.total_line_cost) as total
-      FROM maintenance_orders o
-      JOIN consumption_details cd ON o.id = cd.order_id
-      JOIN equipment e ON o.equipment_id = e.id
-      GROUP BY e.id
-      ORDER BY total DESC
-      LIMIT 5
-    `;
-
-    // 5. GRÁFICO 3: Preventivo vs Correctivo
-    const maintenanceTypeDistribution = await prisma.maintenance_orders.groupBy({
-      by: ['maintenance_type'],
-      _count: {
-        id: true
-      }
-    });
+    // Ejecutar todas las queries en paralelo para optimizar el uso del pool
+    const [
+      currentMonthExpense,
+      currentMonthCount,
+      expensesByMonth,
+      topExpensiveEquipments,
+      maintenanceTypeDistribution
+    ] = await Promise.all([
+      // 1. KPI: Gasto Total del Mes Actual
+      prisma.$queryRaw<any[]>`
+        SELECT SUM(cd.total_line_cost) as total
+        FROM maintenance_orders o
+        JOIN consumption_details cd ON o.id = cd.order_id
+        WHERE o.order_date >= ${firstDayOfMonth}
+      `,
+      
+      // 2. KPI: Cantidad de Órdenes del Mes
+      prisma.maintenance_orders.count({
+        where: { order_date: { gte: firstDayOfMonth } }
+      }),
+      
+      // 3. GRÁFICO 1: Gasto por los últimos 6 meses
+      prisma.$queryRaw<any[]>`
+        SELECT 
+          DATE_FORMAT(o.order_date, '%Y-%m') as month, 
+          SUM(cd.total_line_cost) as total
+        FROM maintenance_orders o
+        JOIN consumption_details cd ON o.id = cd.order_id
+        WHERE o.order_date >= DATE_SUB(CURDATE(), INTERVAL 6 MONTH)
+        GROUP BY DATE_FORMAT(o.order_date, '%Y-%m')
+        ORDER BY month ASC
+      `,
+      
+      // 4. GRÁFICO 2: Top 5 Equipos más costosos
+      prisma.$queryRaw<any[]>`
+        SELECT 
+          e.internal_code, 
+          e.model,
+          SUM(cd.total_line_cost) as total
+        FROM maintenance_orders o
+        JOIN consumption_details cd ON o.id = cd.order_id
+        JOIN equipment e ON o.equipment_id = e.id
+        GROUP BY e.id
+        ORDER BY total DESC
+        LIMIT 5
+      `,
+      
+      // 5. GRÁFICO 3: Preventivo vs Correctivo
+      prisma.maintenance_orders.groupBy({
+        by: ['maintenance_type'],
+        _count: { id: true }
+      })
+    ]);
 
     // Armamos la respuesta final
     res.json({
