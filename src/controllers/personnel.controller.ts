@@ -4,23 +4,43 @@ import { PersonnelSchema } from '../schemas/personnel.schema';
 
 export const getPersonnel = async (req: Request, res: Response) => {
   try {
-    const { role, search } = req.query;
+    const { role, search, page = '1', limit = '10' } = req.query;
 
+    const pageNum = parseInt(String(page));
+    const limitNum = parseInt(String(limit));
+    const skip = (pageNum - 1) * limitNum;
+
+    const where = {
+      is_active: true,
+      ...(role ? { job_title: String(role) } : {}),
+      ...(search ? { full_name: { contains: String(search) } } : {})
+    };
+
+    // Contar total de registros
+    const total = await prisma.personnel.count({ where });
+
+    // Obtener registros paginados
     const personnel = await prisma.personnel.findMany({
-      where: {
-        is_active: true, // Solo activos
-        ...(role ? { job_title: String(role) } : {}),
-        ...(search ? { full_name: { contains: String(search) } } : {}) // Búsqueda por nombre
-      },
+      where,
       select: {
         id: true,
         full_name: true,
         job_title: true
       },
-      orderBy: { full_name: 'asc' }
+      orderBy: { full_name: 'asc' },
+      skip,
+      take: limitNum
     });
 
-    res.json(personnel);
+    res.json({
+      data: personnel,
+      pagination: {
+        total,
+        page: pageNum,
+        limit: limitNum,
+        totalPages: Math.ceil(total / limitNum)
+      }
+    });
   } catch (error) {
     res.status(500).json({ message: 'Error al obtener personal' });
   }

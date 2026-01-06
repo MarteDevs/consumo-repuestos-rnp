@@ -42,15 +42,25 @@ export const getProducts = async (req: Request, res: Response) => {
 // ENDPOINT PARA LISTAR CATÁLOGO COMPLETO (usado en gestión de inventario)
 export const getCatalog = async (req: Request, res: Response) => {
   try {
-    const { search } = req.query;
+    const { search, page = '1', limit = '10' } = req.query;
 
+    const pageNum = parseInt(String(page));
+    const limitNum = parseInt(String(limit));
+    const skip = (pageNum - 1) * limitNum;
+
+    const where = search ? {
+      OR: [
+        { name: { contains: String(search) } },
+        { part_number: { contains: String(search) } }
+      ]
+    } : undefined;
+
+    // Contar total de registros
+    const total = await prisma.product_catalog.count({ where });
+
+    // Obtener registros paginados
     const catalog = await prisma.product_catalog.findMany({
-      where: search ? {
-        OR: [
-          { name: { contains: String(search) } },
-          { part_number: { contains: String(search) } }
-        ]
-      } : undefined,
+      where,
       include: {
         product_variants: {
           where: { is_active: true },
@@ -59,10 +69,20 @@ export const getCatalog = async (req: Request, res: Response) => {
           }
         }
       },
-      orderBy: { name: 'asc' }
+      orderBy: { name: 'asc' },
+      skip,
+      take: limitNum
     });
 
-    res.json(catalog);
+    res.json({
+      data: catalog,
+      pagination: {
+        total,
+        page: pageNum,
+        limit: limitNum,
+        totalPages: Math.ceil(total / limitNum)
+      }
+    });
   } catch (error) {
     res.status(500).json({ message: 'Error al cargar catálogo' });
   }

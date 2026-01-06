@@ -42,34 +42,60 @@ export const createOrderController = async (req: Request, res: Response): Promis
 
 export const getOrders = async (req: Request, res: Response) => {
   try {
+    const { page = '1', limit = '10', search } = req.query;
+
+    const pageNum = parseInt(String(page));
+    const limitNum = parseInt(String(limit));
+    const skip = (pageNum - 1) * limitNum;
+
+    const where = search ? {
+      OR: [
+        { poot_number: { contains: String(search) } },
+        { equipment: { internal_code: { contains: String(search) } } }
+      ]
+    } : {};
+
+    // Contar total de registros
+    const total = await prisma.maintenance_orders.count({ where });
+
+    // Obtener registros paginados
     const orders = await prisma.maintenance_orders.findMany({
-      orderBy: { created_at: 'desc' }, // Las más nuevas primero
+      where,
+      orderBy: { created_at: 'desc' },
       include: {
-        equipment: true, // Traemos datos del equipo
-        personnel_maintenance_orders_mechanic_idTopersonnel: true,  // Traemos datos del mecánico
-        personnel_maintenance_orders_supervisor_idTopersonnel: true,// Traemos datos del supervisor
-        consumption_details: true // Traemos los detalles para calcular el costo
-      }
+        equipment: true,
+        personnel_maintenance_orders_mechanic_idTopersonnel: true,
+        personnel_maintenance_orders_supervisor_idTopersonnel: true,
+        consumption_details: true
+      },
+      skip,
+      take: limitNum
     });
 
     // Procesamos para calcular el TOTAL de cada orden
     const formattedOrders = orders.map(order => {
-      // Sumamos el costo de todos los repuestos de esta orden
       const totalCost = order.consumption_details.reduce((sum, item) => {
         return sum + Number(item.total_line_cost);
       }, 0);
 
       return {
         ...order,
-        total_cost: totalCost, // Campo calculado extra
+        total_cost: totalCost,
         items_count: order.consumption_details.length,
-
         mechanic: order.personnel_maintenance_orders_mechanic_idTopersonnel,
         supervisor: order.personnel_maintenance_orders_supervisor_idTopersonnel
       };
     });
 
-    res.json(formattedOrders);
+    res.json({
+      data: formattedOrders,
+      pagination: {
+        total,
+        page: pageNum,
+        limit: limitNum,
+        totalPages: Math.ceil(total / limitNum)
+      }
+    });
   } catch (error) {
     res.status(500).json({ message: 'Error al obtener historial de órdenes' });
   }

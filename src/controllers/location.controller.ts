@@ -4,16 +4,41 @@ import { LocationSchema } from '../schemas/location.schema';
 
 export const getLocations = async (req: Request, res: Response) => {
   try {
+    const { search, page = '1', limit = '10' } = req.query;
+
+    const pageNum = parseInt(String(page));
+    const limitNum = parseInt(String(limit));
+    const skip = (pageNum - 1) * limitNum;
+
+    const where = search ? {
+      name: { contains: String(search) }
+    } : {};
+
+    // Contar total de registros
+    const total = await prisma.locations.count({ where });
+
+    // Obtener registros paginados
     const locations = await prisma.locations.findMany({
+      where,
       select: {
         id: true,
         name: true,
-        type: true // 'MINA', 'TALLER', etc.
+        type: true
       },
-      orderBy: { name: 'asc' }
+      orderBy: { name: 'asc' },
+      skip,
+      take: limitNum
     });
 
-    res.json(locations);
+    res.json({
+      data: locations,
+      pagination: {
+        total,
+        page: pageNum,
+        limit: limitNum,
+        totalPages: Math.ceil(total / limitNum)
+      }
+    });
   } catch (error) {
     res.status(500).json({ message: 'Error al obtener ubicaciones' });
   }

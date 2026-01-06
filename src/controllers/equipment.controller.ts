@@ -4,30 +4,47 @@ import { EquipmentSchema } from '../schemas/equipment.schema';
 
 export const getEquipments = async (req: Request, res: Response) => {
   try {
-    const { search, status } = req.query;
+    const { search, status, page = '1', limit = '10' } = req.query;
 
+    const pageNum = parseInt(String(page));
+    const limitNum = parseInt(String(limit));
+    const skip = (pageNum - 1) * limitNum;
+
+    const where = {
+      status: status ? String(status) : { not: 'BAJA' },
+      ...(search ? {
+        OR: [
+          { internal_code: { contains: String(search) } },
+          { model: { contains: String(search) } },
+          { serial_number: { contains: String(search) } }
+        ]
+      } : {})
+    };
+
+    // Contar total de registros
+    const total = await prisma.equipment.count({ where });
+
+    // Obtener registros paginados
     const equipments = await prisma.equipment.findMany({
-      where: {
-        // Filtro por Estado (Si no envían nada, traemos todo menos las BAJAS para no ensuciar la lista)
-        status: status ? String(status) : { not: 'BAJA' },
-        
-        // Buscador Inteligente
-        ...(search ? {
-          OR: [
-            { internal_code: { contains: String(search) } },
-            { model: { contains: String(search) } },
-            { serial_number: { contains: String(search) } }
-          ]
-        } : {})
-      },
+      where,
       include: {
-        brands: true,      // Traer nombre de la Marca
-        locations: true    // Traer nombre de la Ubicación actual
+        brands: true,
+        locations: true
       },
-      orderBy: { internal_code: 'asc' }
+      orderBy: { internal_code: 'asc' },
+      skip,
+      take: limitNum
     });
 
-    res.json(equipments);
+    res.json({
+      data: equipments,
+      pagination: {
+        total,
+        page: pageNum,
+        limit: limitNum,
+        totalPages: Math.ceil(total / limitNum)
+      }
+    });
   } catch (error) {
     res.status(500).json({ message: 'Error al obtener equipos' });
   }
