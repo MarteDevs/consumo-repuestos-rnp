@@ -8,6 +8,7 @@ import personnelRoutes from './routes/personnel.routes';
 import locationRoutes from './routes/location.routes';
 import statsRoutes from './routes/stats.routes';
 
+
 import prisma from './config/db';
 
 dotenv.config();
