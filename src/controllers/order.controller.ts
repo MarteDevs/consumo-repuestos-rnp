@@ -53,7 +53,7 @@ export const getOrders = async (req: Request, res: Response) => {
         { poot_number: { contains: String(search) } },
         { equipment: { internal_code: { contains: String(search) } } }
       ]
-    } : {};
+    } : undefined;
 
     // Contar total de registros
     const total = await prisma.maintenance_orders.count({ where });
