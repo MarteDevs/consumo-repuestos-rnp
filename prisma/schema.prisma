@@ -1,5 +1,6 @@
 generator client {
   provider = "prisma-client-js"
+  output   = "../src/generated/prisma/client"
 }
 
 datasource db {
@@ -118,4 +119,52 @@ model product_variants {
 
   @@index([brand_id], map: "brand_id")
   @@index([catalog_id], map: "idx_variants_catalog")
+}
+
+model query1 {
+  id                      Int       @id @default(autoincrement())
+  area_solicitante        String?   @db.VarChar(100)
+  empresa                 String?   @db.VarChar(50)
+  fecha                   DateTime? @db.Date
+  comprobante_original    String?   @db.VarChar(50)
+  numero_original         Int?
+  poot_b                  String?   @db.VarChar(50)
+  comprobante_stock       String?   @db.VarChar(50)
+  numero_stock            Int?
+  numero_item             Int?
+  tipo_producto           String?   @db.VarChar(50)
+  material                String?   @db.VarChar(255)
+  codigo                  String?   @db.VarChar(50)
+  unidad                  String?   @db.VarChar(20)
+  cantidad                Decimal?  @db.Decimal(10, 2)
+  precio_igv              Decimal?  @db.Decimal(10, 4)
+  total                   Decimal?  @db.Decimal(10, 4)
+  lista                   String?   @db.VarChar(50)
+  moneda                  String?   @db.VarChar(10)
+  form_h                  String?   @db.VarChar(255)
+  go_estapro              String?   @db.VarChar(100)
+  go_userid               String?   @db.VarChar(100)
+  go_cantid               Decimal?  @db.Decimal(10, 2)
+  go_canate               Decimal?  @db.Decimal(10, 2)
+  go_canpen               Decimal?  @db.Decimal(10, 2)
+  go_desdep               String?   @db.VarChar(100)
+  go_obsvdt               String?   @db.Text
+  go_textos               String?   @db.Text
+  area_pedido_destino     String?   @db.VarChar(100)
+  equipo                  String?   @db.VarChar(100)
+  observacion             String?   @db.Text
+  tipo_manten             String?   @db.VarChar(50)
+  mantenimiento           String?   @db.VarChar(100)
+  horas                   String?   @db.VarChar(50)
+  hora_inicial            String?   @db.VarChar(50)
+  hora_final              String?   @db.VarChar(50)
+  hora                    String?   @db.VarChar(50)
+  cod_trabajador          String?   @db.VarChar(50)
+  mes                     String?   @db.VarChar(20)
+  anio                    String?   @db.VarChar(10)
+  created_at              DateTime? @default(now()) @db.Timestamp(0)
+
+  @@index([poot_b], map: "idx_poot")
+  @@index([equipo], map: "idx_equipo")
+  @@index([codigo], map: "idx_codigo")
 }

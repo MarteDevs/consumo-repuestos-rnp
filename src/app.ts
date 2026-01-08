@@ -7,7 +7,7 @@ import productRoutes from './routes/product.routes';
 import personnelRoutes from './routes/personnel.routes';
 import locationRoutes from './routes/location.routes';
 import statsRoutes from './routes/stats.routes';
-
+import importRoutes from './routes/import.routes';
 
 import prisma from './config/db';
 
@@ -28,6 +28,7 @@ app.use('/api/products', productRoutes);
 app.use('/api/personnel', personnelRoutes);
 app.use('/api/locations', locationRoutes);
 app.use('/api/stats', statsRoutes);
+app.use('/api/import', importRoutes);
 
 // Ruta de salud (para ver si vive)
 app.get('/health', (_req, _res) => {
