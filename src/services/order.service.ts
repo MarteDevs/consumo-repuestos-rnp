@@ -50,6 +50,27 @@ export const createOrderService = async (data: CreateOrderDTO) => {
       // Calculamos el costo total de la línea
       const totalLineCost = Number(variant.unit_price) * item.quantity;
 
+      const lastDetailForItem = await tx.consumption_details.findFirst({
+        where: {
+          variant_id: item.variant_id,
+          maintenance_orders: {
+            equipment_id: data.equipment_id
+          }
+        },
+        orderBy: {
+          maintenance_orders: {
+            order_date: 'desc'
+          }
+        },
+        include: {
+          maintenance_orders: true
+        }
+      });
+
+      const meterReadingPreviousItem = lastDetailForItem?.maintenance_orders.meter_reading_current ?? data.meter_reading_previous;
+      const meterReadingCurrentItem = data.meter_reading_current;
+      const lifeFeet = Number(meterReadingCurrentItem) - Number(meterReadingPreviousItem ?? 0);
+
       // Guardamos el detalle CONGELANDO el precio
       await tx.consumption_details.create({
         data: {
@@ -58,7 +79,10 @@ export const createOrderService = async (data: CreateOrderDTO) => {
           quantity: item.quantity,
           recorded_unit_price: variant.unit_price,
           recorded_currency: variant.currency,
-          total_line_cost: Number(item.quantity) * Number(variant.unit_price)
+          total_line_cost: totalLineCost,
+          meter_reading_previous_item: meterReadingPreviousItem,
+          meter_reading_current_item: meterReadingCurrentItem,
+          life_feet: lifeFeet
         }
       });
     }

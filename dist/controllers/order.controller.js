@@ -1,0 +1,158 @@
+"use strict";
+Object.defineProperty(exports, "__esModule", { value: true });
+exports.getOrderById = exports.getOrders = exports.createOrderController = void 0;
+const order_service_1 = require("../services/order.service");
+const order_schema_1 = require("../schemas/order.schema");
+const zod_1 = require("zod");
+const db_1 = require("../config/db");
+const createOrderController = async (req, res) => {
+    try {
+        // 1. Validamos los datos que llegan (Si fallan, Zod lanza error aquí mismo)
+        const validatedData = order_schema_1.CreateOrderSchema.parse(req.body);
+        // 2. Llamamos al servicio (Lógica de negocio)
+        const newOrder = await (0, order_service_1.createOrderService)(validatedData);
+        // 3. Respuesta Exitosa
+        res.status(201).json({
+            success: true,
+            message: 'Orden de consumo creada exitosamente 🚀',
+            data: newOrder
+        });
+    }
+    catch (error) {
+        // Manejo de errores profesional
+        // A. Si es error de validación (Zod)
+        if (error instanceof zod_1.z.ZodError) {
+            res.status(400).json({
+                success: false,
+                message: 'Error de validación en los datos',
+                errors: error.issues // Devuelve detalle exacto de qué campo falló
+            });
+            return; // Importante: detener la ejecución
+        }
+        // B. Si es error de negocio (lo que lanzamos en el Service con "throw new Error")
+        res.status(400).json({
+            success: false,
+            message: error.message || 'Error interno del servidor'
+        });
+    }
+};
+exports.createOrderController = createOrderController;
+const getOrders = async (req, res) => {
+    try {
+        const { page = '1', limit = '10', search } = req.query;
+        const pageNum = parseInt(String(page));
+        const limitNum = parseInt(String(limit));
+        const skip = (pageNum - 1) * limitNum;
+        const where = search ? {
+            OR: [
+                { poot_number: { contains: String(search) } },
+                { equipment: { internal_code: { contains: String(search) } } }
+            ]
+        } : undefined;
+        // Contar total de registros
+        const total = await db_1.prisma.maintenance_orders.count({ where });
+        // Obtener registros paginados
+        const orders = await db_1.prisma.maintenance_orders.findMany({
+            where,
+            orderBy: { created_at: 'desc' },
+            include: {
+                equipment: true,
+                personnel_maintenance_orders_mechanic_idTopersonnel: true,
+                personnel_maintenance_orders_supervisor_idTopersonnel: true,
+                consumption_details: true
+            },
+            skip,
+            take: limitNum
+        });
+        // Procesamos para calcular el TOTAL de cada orden
+        const formattedOrders = orders.map(order => {
+            const totalCost = order.consumption_details.reduce((sum, item) => {
+                return sum + Number(item.total_line_cost);
+            }, 0);
+            return {
+                ...order,
+                total_cost: totalCost,
+                items_count: order.consumption_details.length,
+                mechanic: order.personnel_maintenance_orders_mechanic_idTopersonnel,
+                supervisor: order.personnel_maintenance_orders_supervisor_idTopersonnel
+            };
+        });
+        res.json({
+            data: formattedOrders,
+            pagination: {
+                total,
+                page: pageNum,
+                limit: limitNum,
+                totalPages: Math.ceil(total / limitNum)
+            }
+        });
+    }
+    catch (error) {
+        res.status(500).json({ message: 'Error al obtener historial de órdenes' });
+    }
+};
+exports.getOrders = getOrders;
+const getOrderById = async (req, res) => {
+    try {
+        const { id } = req.params;
+        const order = await db_1.prisma.maintenance_orders.findUnique({
+            where: { id: Number(id) },
+            include: {
+                // 1. Traemos Equipo + Su Ubicación Actual
+                equipment: {
+                    include: {
+                        locations: true // Para saber dónde está el equipo físicamente
+                    }
+                },
+                // 2. Traemos la Ubicación de Destino del Pedido
+                locations: true,
+                // 3. Personal
+                personnel_maintenance_orders_mechanic_idTopersonnel: true,
+                personnel_maintenance_orders_supervisor_idTopersonnel: true,
+                // 4. Detalles + Nombres Correctos (Usando los nombres de Prisma)
+                consumption_details: {
+                    include: {
+                        product_variants: {
+                            include: {
+                                product_catalog: true, // <--- Así se llama en tu BD
+                                brands: true // <--- Así se llama en tu BD
+                            }
+                        }
+                    }
+                }
+            }
+        });
+        if (!order) {
+            res.status(404).json({ message: 'Orden no encontrada' });
+            return;
+        }
+        // --- LIMPIEZA DE DATOS (MAPPING) ---
+        // Convertimos la estructura fea de Prisma a la bonita que espera Vue
+        const formattedOrder = {
+            ...order,
+            // Nombres de cabecera
+            location: order.locations, // "Area Destino"
+            mechanic: order.personnel_maintenance_orders_mechanic_idTopersonnel,
+            supervisor: order.personnel_maintenance_orders_supervisor_idTopersonnel,
+            // Limpieza de los detalles (Aquí arreglamos el "Item desconocido")
+            consumption_details: order.consumption_details.map(detail => ({
+                ...detail,
+                variant: {
+                    ...detail.product_variants,
+                    // Mapeamos 'product_catalog' a 'catalog' para que el front lo entienda
+                    catalog: detail.product_variants?.product_catalog,
+                    // Mapeamos 'brands' a 'brand'
+                    brand: detail.product_variants?.brands
+                }
+            })),
+            // Calculamos total
+            total_cost: order.consumption_details.reduce((sum, item) => sum + Number(item.total_line_cost), 0)
+        };
+        res.json(formattedOrder);
+    }
+    catch (error) {
+        console.error(error);
+        res.status(500).json({ message: 'Error al obtener el detalle' });
+    }
+};
+exports.getOrderById = getOrderById;
